@@ -1,8 +1,8 @@
 object Form2: TForm2
   Left = 0
   Top = 0
-  Caption = 'Form2'
-  ClientHeight = 282
+  Caption = 'Delphi-AMF Test Suite - PrY (2012)'
+  ClientHeight = 617
   ClientWidth = 622
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -13,7 +13,7 @@ object Form2: TForm2
   OldCreateOrder = False
   DesignSize = (
     622
-    282)
+    617)
   PixelsPerInch = 96
   TextHeight = 13
   object btTest: TButton
@@ -30,7 +30,7 @@ object Form2: TForm2
     Left = 8
     Top = 56
     Width = 606
-    Height = 218
+    Height = 553
     Anchors = [akLeft, akTop, akRight, akBottom]
     ScrollBars = ssVertical
     TabOrder = 1

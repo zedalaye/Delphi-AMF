@@ -52,6 +52,7 @@ begin
     S.Free;
   end;
 
+  mDump.Lines.Add('');
   mDump.Lines.Add('Running AMF0 Serializer Test Suite');
   TAMF0TestRunner.RunTests(mDump.Lines);
 

@@ -91,6 +91,8 @@ type
     procedure WriteDateTime(ADateTime: TDateTime);
     procedure WriteArray(const AnArray: array of const);
     procedure WriteHash(const AnArrayOfKeys: array of string; const AnArrayOfValues: array of const);
+
+    function StartArray(Elements: Integer): TAMFStream;
   end;
 
 implementation
@@ -175,6 +177,22 @@ begin
   PackReversedByteArray(V);
 end;
 
+function TAMFStream.StartArray(Elements: Integer): TAMFStream;
+begin
+  if FVersion = v0 then
+  begin
+    PackByte(AMF0_STRICT_ARRAY_MARKER);
+    PackLongWord(Elements);
+  end
+  else
+  begin
+    PackByte(AMF3_ARRAY_MARKER);
+    PackInteger((Elements shl 1) or $01);
+    PackByte(AMF3_CLOSE_DYNAMIC_ARRAY);
+  end;
+  Result := Self;
+end;
+
 procedure TAMFStream.PackAMF3UTF8String(AnUTF8String: UTF8String);
 begin
   if AnUTF8String = '' then
@@ -256,32 +274,27 @@ procedure TAMFStream.WriteArray(const AnArray: array of const);
 var
   I: Integer;
 begin
-  if FVersion = v0 then
+  StartArray(Length(AnArray));
+  for I := 0 to High(AnArray) do
   begin
-    PackByte(AMF0_STRICT_ARRAY_MARKER);
-    PackLongWord(Length(AnArray));
-
-    for I := 0 to High(AnArray) do
+    with AnArray[I] do
     begin
-      with AnArray[I] do
-      begin
-        case VType of
-          vtInteger:       WriteDouble(VInteger);
-          vtBoolean:       WriteBoolean(VBoolean);
-          vtChar:          WriteString(string(VChar));
-          vtExtended:      WriteDouble(VExtended^);
-          vtString:        WriteString(string(VString^));
-          vtPChar:         WriteString(string(VPChar));
-          vtWideChar:      WriteString(VWideChar);
-          vtPWideChar:     WriteString(VPWideChar);
-          vtAnsiString:    WriteString(string(VAnsiString));
-          vtCurrency:      WriteDouble(VCurrency^);
-          vtWideString:    WriteString(string(VWideString^));
-          vtInt64:         WriteDouble(VInt64^);
-          vtUnicodeString: WriteString(PChar(VUnicodeString));
-        else
-          raise EAMFNotSupportedError.Create('Type not supported');
-        end;
+      case VType of
+        vtInteger:       WriteInteger(VInteger);
+        vtBoolean:       WriteBoolean(VBoolean);
+        vtChar:          WriteString(string(VChar));
+        vtExtended:      WriteDouble(VExtended^);
+        vtString:        WriteString(string(VString^));
+        vtPChar:         WriteString(string(VPChar));
+        vtWideChar:      WriteString(VWideChar);
+        vtPWideChar:     WriteString(VPWideChar);
+        vtAnsiString:    WriteString(string(VAnsiString));
+        vtCurrency:      WriteDouble(VCurrency^);
+        vtWideString:    WriteString(string(VWideString^));
+        vtInt64:         WriteDouble(VInt64^);
+        vtUnicodeString: WriteString(PChar(VUnicodeString));
+      else
+        raise EAMFNotSupportedError.Create('Type not supported');
       end;
     end;
   end;
@@ -348,7 +361,9 @@ begin
     else
     begin
       PackByte(AMF3_OBJECT_MARKER);
-      PackInteger($03 or ($02 shl 2));
+      { No object ref, no trait ref + Dynamic + not Externalizable + no members }
+      PackInteger($03 or ($02 shl 2) { or ($01 shl 2) or ($00 shl 4 } );
+      PackAMF3UTF8String('');
     end;
 
     Keys := D.Keys.ToArray;
@@ -367,7 +382,7 @@ begin
       with AnArrayOfValues[D[K]] do
       begin
         case VType of
-          vtInteger:       WriteDouble(VInteger);
+          vtInteger:       WriteInteger(VInteger);
           vtBoolean:       WriteBoolean(VBoolean);
           vtChar:          WriteString(string(VChar));
           vtExtended:      WriteDouble(VExtended^);

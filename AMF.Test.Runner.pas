@@ -41,6 +41,9 @@ type
     class function TestSmallStrings: Boolean;
     class function TestDateTimes: Boolean;
     class function TestHashes: Boolean;
+    class function TestEmptyArrays: Boolean;
+    class function TestPrimitiveArrays: Boolean;
+    class function TestMixedArrays: Boolean;
 
     class procedure RunTests(Results: TStrings); override;
   end;
@@ -194,6 +197,9 @@ begin
   LogTestResult(Results, 'SmallStrings',     TestSmallStrings);
   LogTestResult(Results, 'DateTimes',        TestDateTimes);
   LogTestResult(Results, 'Hashes',           TestHashes);
+  LogTestResult(Results, 'EmptyArrays',      TestEmptyArrays);
+  LogTestResult(Results, 'PrimitiveArrays',  TestPrimitiveArrays);
+  LogTestResult(Results, 'MixedArrays',      TestMixedArrays);
 end;
 
 class function TAMF3TestRunner.TestBigNums: Boolean;
@@ -212,6 +218,26 @@ begin
   begin
     WriteDateTime(EncodeDateTime(1970, 1, 1, 0, 0, 0, 0));
     Result := CheckEquals(ToRawString, 'amf3-date.bin');
+    Free;
+  end;
+end;
+
+class function TAMF3TestRunner.TestEmptyArrays: Boolean;
+begin
+  with TAMFStream.Create(v3) do
+  begin
+    WriteArray([]);
+    Result := CheckEquals(ToRawString, 'amf3-empty-array.bin');
+    Free;
+  end;
+end;
+
+class function TAMF3TestRunner.TestPrimitiveArrays: Boolean;
+begin
+  with TAMFStream.Create(v3) do
+  begin
+    WriteArray([1, 2, 3, 4, 5]);
+    Result := CheckEquals(ToRawString, 'amf3-primitive-array.bin');
     Free;
   end;
 end;
@@ -282,6 +308,43 @@ begin
   begin
     WriteInteger(TAMFStream.MIN_INTEGER);
     Result := CheckEquals(ToRawString, 'amf3-min.bin');
+    Free;
+  end;
+end;
+
+class function TAMF3TestRunner.TestMixedArrays: Boolean;
+begin
+  with TAMFStream.Create(v3) do
+  begin
+    StartArray(13);
+      WriteHash(['foo_one'], ['bar_one']);
+      WriteHash(['foo_two'], ['']);
+      WriteHash(['foo_three'], [42]);
+
+      WriteHash([], []);
+
+      StartArray(3);
+        WriteHash(['foo_one'], ['bar_one']);
+        WriteHash(['foo_two'], ['']);
+        WriteHash(['foo_three'], [42]);
+
+      WriteArray([]);
+
+      WriteInteger(42);
+
+      WriteString('');
+
+      WriteArray([]);
+
+      WriteString('');
+
+      WriteHash([], []);
+
+      WriteString('bar_one');
+
+      WriteHash(['foo_three'], [42]);
+
+    Result := CheckEquals(ToRawString, 'amf3-mixed-array.bin');
     Free;
   end;
 end;
