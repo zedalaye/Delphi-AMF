@@ -23,7 +23,8 @@ var
 implementation
 
 uses
-  AMF.Message, AMF.Test.Runner;
+  AMF.Types, AMF.Message, AMF.Test.Runner,
+  SuperObject;
 
 {$R *.dfm}
 
@@ -37,10 +38,10 @@ const
     $40000000 - 1, $40000000, $40000000 + 1
   );
 var
-  S: TAMFStream;
+  S: TAMF3Stream;
   I: Integer;
 begin
-  S := TAMFStream.Create(v3);
+  S := TAMF3Stream.Create;
   try
     for I in INTEGERS do
     begin

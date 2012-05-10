@@ -4,7 +4,8 @@ uses
   Vcl.Forms,
   AMF.Main in 'AMF.Main.pas' {Form2},
   AMF.Test.Runner in 'AMF.Test.Runner.pas',
-  AMF.Message in 'AMF.Message.pas';
+  AMF.Message in 'AMF.Message.pas',
+  AMF.Types in 'AMF.Types.pas';
 
 {$R *.res}
 

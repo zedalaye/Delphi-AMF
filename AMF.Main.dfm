@@ -32,6 +32,12 @@ object Form2: TForm2
     Width = 606
     Height = 553
     Anchors = [akLeft, akTop, akRight, akBottom]
+    Font.Charset = DEFAULT_CHARSET
+    Font.Color = clWindowText
+    Font.Height = -15
+    Font.Name = 'Lucida Console'
+    Font.Style = []
+    ParentFont = False
     ScrollBars = ssVertical
     TabOrder = 1
   end
