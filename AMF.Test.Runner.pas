@@ -44,6 +44,8 @@ type
     class function TestEmptyArrays: string;
     class function TestPrimitiveArrays: string;
     class function TestMixedArrays: string;
+    class function TestArrayCollections: string;
+    class function TestByteArrays: string;
 
     class procedure RunTests(Results: TStrings); override;
   end;
@@ -227,6 +229,18 @@ begin
   LogTestResult(Results, 'EmptyArrays',      TestEmptyArrays);
   LogTestResult(Results, 'PrimitiveArrays',  TestPrimitiveArrays);
   LogTestResult(Results, 'MixedArrays',      TestMixedArrays);
+  LogTestResult(Results, 'ArrayCollections', TestArrayCollections);
+  LogTestResult(Results, 'ByteArrays',       TestByteArrays);
+end;
+
+class function TAMF3TestRunner.TestArrayCollections: string;
+var
+  s: TAMF3Stream;
+begin
+  s := TAMF3Stream.Create;
+  s.WriteArray(['foo', 'bar'], True);
+  Result := CheckEquals(s, 'amf3-array-collection.bin');
+  s.Free;
 end;
 
 class function TAMF3TestRunner.TestBigNums: string;
@@ -236,6 +250,16 @@ begin
   s := TAMF3Stream.Create;
   s.WriteDouble(Power(2, 1000));
   Result := CheckEquals(s, 'amf3-bigNum.bin');
+  s.Free;
+end;
+
+class function TAMF3TestRunner.TestByteArrays: string;
+var
+  s: TAMF3Stream;
+begin
+  s := TAMF3Stream.Create;
+  s.WriteByteArray(UTF8String(#0 + #3 + 'これtest@'));
+  Result := CheckEquals(s, 'amf3-byte-array.bin');
   s.Free;
 end;
 
@@ -351,8 +375,8 @@ var
   foo3: TFoo3;
   v1, v2, v3: TValue;
 begin
-  foo1.foo_one := 'bar_one';
-  foo2.foo_two := '';
+  foo1.foo_one   := 'bar_one';
+  foo2.foo_two   := '';
   foo3.foo_three := 42;
 
   v1 := TValue.From<TFoo1>(foo1);
@@ -360,35 +384,23 @@ begin
   v3 := TValue.From<TFoo3>(foo3);
 
   s := TAMF3Stream.Create;
-  with s do
-  begin
-    StartArray(13);
-      WriteValue(v1);
-      WriteValue(v2);
-      WriteValue(v3);
-
-      WriteHash([], []);
-
-      StartArray(3);
-        WriteValue(v1);
-        WriteValue(v2);
-        WriteValue(v3);
-
-      WriteArray([]);
-
-      WriteValue(42);
-      WriteValue('');
-
-      WriteArray([]);
-
-      WriteValue('');
-
-      WriteHash([], []);
-
-      WriteValue('bar_one');
-
-      WriteValue(v3);
-  end;
+  s.StartArray(13);
+    s.WriteValue(v1);
+    s.WriteValue(v2);
+    s.WriteValue(v3);
+    s.WriteHash([], []);
+    s.StartArray(3);
+      s.WriteValue(v1);
+      s.WriteValue(v2);
+      s.WriteValue(v3);
+    s.WriteArray([]);
+    s.WriteValue(42);
+    s.WriteValue('');
+    s.WriteArray([]);
+    s.WriteValue('');
+    s.WriteHash([], []);
+    s.WriteValue('bar_one');
+    s.WriteValue(v3);
 
   Result := CheckEquals(s, 'amf3-mixed-array.bin');
   s.Free;

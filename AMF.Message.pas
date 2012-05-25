@@ -47,26 +47,28 @@ type
   end;
 
   TAMF3Stream = class(TAMFBaseStream)
-  private type
-    TAMFCache<T> = class
-    private
-      FIndex: Integer;
-      FCache: TDictionary<T, Integer>;
-      function GetIndex(const Obj: T): Integer;
-    public
-      constructor Create;
-      destructor Destroy; override;
-      procedure AddObject(const Obj: T);
-      function HaveObject(const Obj: T): Boolean;
-      property Index[const Obj: T]: Integer read GetIndex; default;
-    end;
-
+  private
+    type
+      TAMFCache<T> = class
+      private
+        FIndex: Integer;
+        FCache: TDictionary<T, Integer>;
+        function GetIndex(const Obj: T): Integer;
+      public
+        constructor Create;
+        destructor Destroy; override;
+        procedure AddObject(const Obj: T);
+        function HaveObject(const Obj: T): Boolean;
+        property Index[const Obj: T]: Integer read GetIndex; default;
+      end;
   private
     FTraitsCache: TAMFCache<string>;
     FObjectsCache: TAMFCache<Pointer>;
     FStringCache: TAMFCache<UTF8String>;
     procedure PackInteger(AnInteger: Integer);
     procedure PackUTF8String(AnUTF8String: UTF8String);
+    procedure PackObjectTraitsHeader(IsDynamic: Boolean; IsExternalizable: Boolean; Members: Integer);
+    procedure PackTraitsRef(ATraitRef: Integer);
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -77,12 +79,15 @@ type
     procedure WriteDouble(ADouble: Double);
     procedure WriteString(AString: string);
     procedure WriteDateTime(ADateTime: TDateTime);
-    procedure WriteArray(const AnArray: array of const);
+    procedure WriteArray(const AnArray: array of const; AsArrayCollection: Boolean = False);
     procedure WriteHash(const AnArrayOfKeys: array of string; const AnArrayOfValues: array of const);
     procedure WriteReference(ARefIndex: Integer);
     procedure WriteValue(AValue: TValue);
 
-    procedure StartArray(Elements: Integer);
+    procedure WriteByteArray(const AByteArray: RawByteString); overload;
+    procedure WriteByteArray(const AByteArray: TBytes); overload;
+
+    procedure StartArray(Elements: Integer; AsArrayCollection: Boolean = False);
   end;
 
 implementation
@@ -369,6 +374,38 @@ begin
   end;
 end;
 
+procedure TAMF3Stream.PackObjectTraitsHeader(IsDynamic,
+  IsExternalizable: Boolean; Members: Integer);
+var
+  Header: Integer;
+begin
+  (*
+     1...         ...25 26 27 28 29
+       Members Count     D  E  1  1
+
+     D = 0 : Not Dynamic
+     D = 1 : Dynamic
+
+     E = 0 : Not Externalizable
+     E = 1 : Externalizable
+
+     In AMF3 Specs, E is always 0
+  *)
+
+  Header := $03;
+  if IsDynamic then
+    Header := Header or ($01 shl 3);
+  if IsExternalizable then
+    Header := Header or ($01 shl 2);
+  Header := Header or (Members shl 4);
+  PackInteger(Header);
+end;
+
+procedure TAMF3Stream.PackTraitsRef(ATraitRef: Integer);
+begin
+  PackInteger((ATraitRef shl 2) or $01);
+end;
+
 procedure TAMF3Stream.PackUTF8String(AnUTF8String: UTF8String);
 begin
   if AnUTF8String = '' then
@@ -384,13 +421,28 @@ begin
   end;
 end;
 
-procedure TAMF3Stream.StartArray(Elements: Integer);
+procedure TAMF3Stream.StartArray(Elements: Integer; AsArrayCollection: Boolean);
 var
   Dummy: Pointer;
+  ClassName: string;
 begin
   GetMem(Dummy, SizeOf(Dummy));
   FObjectsCache.AddObject(Dummy);
   FreeMem(Dummy);
+
+  if AsArrayCollection then
+  begin
+    PackByte(TAMF3.OBJECT_MARKER);
+    ClassName := 'flex.messaging.io.ArrayCollection';
+    if FTraitsCache.HaveObject(ClassName) then
+      PackTraitsRef(FTraitsCache[ClassName])
+    else
+    begin
+      FTraitsCache.AddObject(ClassName);
+      PackObjectTraitsHeader(False, True, 0);
+      PackUTF8String(UTF8String(ClassName));
+    end;
+  end;
 
   PackByte(TAMF3.ARRAY_MARKER);
   PackInteger((Elements shl 1) or $01);
@@ -404,7 +456,8 @@ end;
 
 procedure TAMF3Stream.WriteReference(ARefIndex: Integer);
 begin
-  PackInteger(ARefIndex shl 1); { Décale la valeur vers la gauche pour forcer le bit de poids faible à zéro }
+  { Forces low order byte to zero }
+  PackInteger(ARefIndex shl 1);
 end;
 
 procedure TAMF3Stream.WriteString(AString: string);
@@ -461,12 +514,11 @@ begin
         );
 
         if FTraitsCache.HaveObject('__default__') then
-          PackInteger((FTraitsCache['__default__'] shl 2) or $01)  { reference }
+          PackTraitsRef(FTraitsCache['__default__'])
         else
         begin
           FTraitsCache.AddObject('__default__');
-          { Traits : No object ref, no trait ref + Dynamic + not Externalizable + no members }
-          PackInteger($03 or ($02 shl 2) { or ($01 shl 2) or ($00 shl 4 } );
+          PackObjectTraitsHeader(True, False, 0);
           PackUTF8String('');
         end;
 
@@ -500,11 +552,11 @@ begin
   end;
 end;
 
-procedure TAMF3Stream.WriteArray(const AnArray: array of const);
+procedure TAMF3Stream.WriteArray(const AnArray: array of const; AsArrayCollection: Boolean);
 var
   I: Integer;
 begin
-  StartArray(Length(AnArray));
+  StartArray(Length(AnArray), AsArrayCollection);
   for I := 0 to High(AnArray) do
   begin
     with AnArray[I] do
@@ -536,6 +588,20 @@ begin
     PackByte(TAMF3.TRUE_MARKER)
   else
     PackByte(TAMF3.FALSE_MARKER);
+end;
+
+procedure TAMF3Stream.WriteByteArray(const AByteArray: TBytes);
+begin
+  PackByte(TAMF3.BYTE_ARRAY_MARKER);
+  PackInteger((Length(AByteArray) shl 1) or 1);
+  FStream.Write(AByteArray[0], Length(AByteArray));
+end;
+
+procedure TAMF3Stream.WriteByteArray(const AByteArray: RawByteString);
+begin
+  PackByte(TAMF3.BYTE_ARRAY_MARKER);
+  PackInteger((Length(AByteArray) shl 1) or 1);
+  FStream.Write(AByteArray[1], Length(AByteArray));
 end;
 
 procedure TAMF3Stream.WriteDateTime(ADateTime: TDateTime);
@@ -570,12 +636,11 @@ begin
     PackByte(TAMF3.OBJECT_MARKER);
 
     if FTraitsCache.HaveObject('__default__') then
-      PackInteger((FTraitsCache['__default__'] shl 2) or $01)
+      PackTraitsRef(FTraitsCache['__default__'])
     else
     begin
       FTraitsCache.AddObject('__default__');
-      { Traits : No object ref, no trait ref + Dynamic + not Externalizable + no members }
-      PackInteger($03 or ($02 shl 2) { or ($01 shl 2) or ($00 shl 4 } );
+      PackObjectTraitsHeader(True, False, 0);
       PackUTF8String('');
     end;
 
